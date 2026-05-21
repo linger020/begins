@@ -1,32 +1,47 @@
 #!/bin/bash
 set -e
+export DEBIAN_FRONTEND=noninteractive
 
-echo "==> 清理当前终端代理变量"
+LOG_FILE="/var/log/init-server.log"
+: > "$LOG_FILE"
+
+step() {
+  echo "==> $1"
+}
+
+run() {
+  DESC="$1"
+  shift
+  step "$DESC"
+  "$@" >> "$LOG_FILE" 2>&1
+}
+
+step "清理当前终端代理变量"
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY || true
 
-echo "==> 检查系统"
-cat /etc/os-release || true
-uname -a
+step "检查系统，详细日志写入 $LOG_FILE"
+{
+  cat /etc/os-release || true
+  uname -a
+} >> "$LOG_FILE" 2>&1
 
-echo "==> 更新软件源并安装基础网络工具"
-apt update
-apt install -y curl ca-certificates
+run "更新软件源并安装基础网络工具" apt update
+run "安装基础网络工具" apt install -y curl ca-certificates
 
-echo "==> 根据公网 IP 自动设置时区"
-TIMEZONE="$(curl -4 -fsS --max-time 8 https://ipapi.co/timezone 2>/dev/null || true)"
+step "根据公网 IP 自动设置时区"
+TIMEZONE="$(curl -4 -fsS --max-time 8 https://ipapi.co/timezone 2>>"$LOG_FILE" || true)"
 
 if [ -n "$TIMEZONE" ] && timedatectl list-timezones | grep -qx "$TIMEZONE"; then
-  timedatectl set-timezone "$TIMEZONE"
+  timedatectl set-timezone "$TIMEZONE" >> "$LOG_FILE" 2>&1
   echo "已设置时区：$TIMEZONE"
 else
-  timedatectl set-timezone Asia/Shanghai || true
+  timedatectl set-timezone Asia/Shanghai >> "$LOG_FILE" 2>&1 || true
   echo "自动识别时区失败，已回退到：Asia/Shanghai"
 fi
 
-echo "==> 更新系统基础包"
-apt upgrade -y
+run "更新系统基础包" apt upgrade -y
 
-echo "==> 安装常用工具和运维组件"
+step "安装常用工具和运维组件，不安装 nginx/certbot/ufw/fail2ban 等会占用端口或改变防火墙的服务"
 apt install -y \
   curl wget aria2 axel vim nano ca-certificates gnupg lsb-release apt-transport-https \
   unzip zip tar gzip bzip2 xz-utils zstd p7zip-full \
@@ -34,18 +49,20 @@ apt install -y \
   net-tools iproute2 iputils-ping dnsutils traceroute mtr-tiny whois tcpdump nmap netcat-openbsd telnet \
   socat cron rsync sqlite3 jq yq \
   openssh-client openssh-server \
-  ufw fail2ban logrotate \
-  nginx certbot python3 python3-pip python3-venv \
+  logrotate \
+  python3 python3-pip python3-venv \
   build-essential cmake pkg-config autoconf automake libtool \
-  openssl lsof psmisc sudo screen tmux tree file locales acl
+  openssl lsof psmisc sudo screen tmux tree file locales acl >> "$LOG_FILE" 2>&1
 
-echo "==> 启用 cron、ssh 和常用统计服务"
-systemctl enable --now cron
-systemctl enable --now ssh || systemctl enable --now sshd || true
-systemctl enable --now sysstat || true
-systemctl enable --now vnstat || true
+step "启用 cron、ssh 和常用统计服务"
+{
+  systemctl enable --now cron
+  systemctl enable --now ssh || systemctl enable --now sshd || true
+  systemctl enable --now sysstat || true
+  systemctl enable --now vnstat || true
+} >> "$LOG_FILE" 2>&1
 
-echo "==> 写入高并发文件句柄和进程限制"
+step "写入高并发文件句柄和进程限制"
 cat > /etc/security/limits.d/99-server-high-limit.conf <<LIMITS
 * soft nofile 1048576
 * hard nofile 1048576
@@ -70,9 +87,9 @@ DefaultLimitNOFILE=1048576
 DefaultLimitNPROC=1048576
 SYSTEMD_USER_LIMITS
 
-ulimit -n 1048576 || true
+ulimit -n 1048576 >> "$LOG_FILE" 2>&1 || true
 
-echo "==> 写入 TCP/内核性能参数"
+step "写入 TCP/内核性能参数"
 cat > /etc/sysctl.d/99-server-performance.conf <<SYSCTL
 fs.file-max = 2097152
 fs.nr_open = 2097152
@@ -115,9 +132,9 @@ vm.swappiness = 10
 vm.vfs_cache_pressure = 50
 SYSCTL
 
-sysctl --system || true
+sysctl --system >> "$LOG_FILE" 2>&1 || true
 
-echo "==> 配置 journald 日志限制，避免日志撑爆磁盘"
+step "配置 journald 日志限制，避免日志撑爆磁盘"
 mkdir -p /etc/systemd/journald.conf.d
 cat > /etc/systemd/journald.conf.d/99-limit.conf <<JOURNALD
 [Journal]
@@ -126,33 +143,24 @@ RuntimeMaxUse=100M
 MaxRetentionSec=7day
 JOURNALD
 
-systemctl daemon-reexec || true
-systemctl restart systemd-journald
+{
+  systemctl daemon-reexec || true
+  systemctl restart systemd-journald
+} >> "$LOG_FILE" 2>&1
 
-echo "==> 安装 hostname/IP 显示脚本"
-bash <(curl -fsSL https://raw.githubusercontent.com/linger020/server-scripts/main/host-ip.sh) || true
+step "安装 hostname/IP 显示脚本"
+bash <(curl -fsSL https://raw.githubusercontent.com/linger020/server-scripts/main/host-ip.sh) >> "$LOG_FILE" 2>&1 || true
 
-echo "==> 显示当前状态"
-echo "公网 IPv4:"
-curl -4 -fsS --max-time 8 https://ip.sb || true
-echo
-echo "当前时区:"
-timedatectl | grep "Time zone" || true
-echo
-echo "内核 TCP/BBR 状态:"
-sysctl net.ipv4.tcp_congestion_control net.core.default_qdisc net.core.somaxconn net.ipv4.tcp_max_syn_backlog fs.file-max fs.nr_open || true
-echo
-echo "当前 shell 文件句柄限制:"
-ulimit -n || true
-echo
-echo "监听端口:"
-ss -tlnp || true
-echo
-echo "磁盘:"
-df -h
-echo
-echo "内存:"
-free -h
+step "输出简要状态"
+PUBLIC_IP="$(curl -4 -fsS --max-time 8 https://ip.sb 2>>"$LOG_FILE" || true)"
+CURRENT_TZ="$(timedatectl 2>>"$LOG_FILE" | grep "Time zone" | sed 's/^[[:space:]]*//')"
+BBR_STATUS="$(sysctl -n net.ipv4.tcp_congestion_control 2>>"$LOG_FILE" || true)"
+NOFILE_LIMIT="$(ulimit -n 2>>"$LOG_FILE" || true)"
 
-echo "==> 初始化完成。部分 systemd 限制需要重新登录 SSH 或重启后完全生效。"
-echo "==> 建议执行：exec bash，或直接 reboot"
+echo "公网 IPv4：${PUBLIC_IP:-unknown}"
+echo "${CURRENT_TZ:-当前时区：unknown}"
+echo "TCP 拥塞控制：${BBR_STATUS:-unknown}"
+echo "当前 shell 文件句柄：${NOFILE_LIMIT:-unknown}"
+echo "详细日志：$LOG_FILE"
+echo "==> 初始化完成。默认未安装 nginx/certbot/ufw/fail2ban，避免占用 443 或影响 REALITY。"
+echo "==> 部分 systemd 限制需要重新登录 SSH 或重启后完全生效。建议执行：exec bash，或直接 reboot"
