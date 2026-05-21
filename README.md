@@ -7,9 +7,9 @@
 | 脚本 | 用途 |
 |---|---|
 | `install-begins.sh` | 安装 `begins` 命令到 `/usr/local/bin/begins`。 |
-| `begins.sh` | 类似 3X-UI 的数字选择菜单，输入 `begins` 后可选择初始化、安装工具、调优、安装 certbot、安装 3x-ui、回程测试等操作。 |
+| `begins.sh` | 类似 3X-UI 的数字选择菜单，输入 `begins` 后可选择初始化、调优、安装 certbot、安装 3x-ui、回程测试等操作。 |
 | `host-ip.sh` | 将服务器 hostname 改成公网 IP 格式，并把终端提示符 `root@ip-*` 设置为红色。 |
-| `init-server.sh` | Debian 新服务器初始化：更新系统、安装常用工具、根据公网 IP 自动设置时区、开启 BBR、提高文件句柄和进程限制、写入 TCP/内核性能参数、限制 journald 日志大小、安装 hostname/IP 显示脚本。默认不安装 nginx、ufw、fail2ban，避免占用 443 或影响 REALITY；默认安装 certbot 工具，但不会自动申请证书。 |
+| `init-server.sh` | Debian 新服务器初始化：更新系统、安装常用工具和 certbot、根据公网 IP 自动设置时区、开启 BBR、提高文件句柄和进程限制、写入 TCP/内核性能参数、限制 journald 日志大小、安装 hostname/IP 显示脚本。默认不安装 nginx、ufw、fail2ban，避免占用 443 或影响 REALITY。 |
 
 ## 安装 begins 菜单
 
@@ -27,12 +27,11 @@ begins
 
 菜单包含：
 
-- Debian 初始化（REALITY 友好，不装 nginx）
+- Debian 初始化 + 常用包 + certbot（REALITY 友好，不装 nginx/ufw/fail2ban）
 - 修改 hostname 为公网 IP + 红色提示符
-- 安装常用 apt 包（含 certbot，不含 nginx）
 - 应用高并发/TCP/BBR 参数
 - 根据公网 IP 设置时区
-- 安装 certbot
+- 单独安装 certbot
 - 安装 3x-ui
 - 安装 backtrace 回程测试
 - 查看监听端口
@@ -51,7 +50,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/linger020/server-scripts/mai
 执行内容包括：
 
 - 清理当前终端代理变量
-- 根据公网 IP 自动识别并设置系统时区，识别失败时回退到 `Asia/Shanghai`
+- 根据公网 IP 自动识别并设置系统时区，识别失败时回退到 `America/Los_Angeles`
 - 执行 `apt update` 和 `apt upgrade -y`
 - 安装常用运维工具，例如 `curl`、`wget`、`aria2`、`vim`、`rsync`、`sqlite3`、`jq`、`yq`、`tmux`、`tcpdump`、`nmap`、`build-essential`、`certbot` 等
 - 不默认安装 `nginx`、`ufw`、`fail2ban`，避免占用 `443` 或改变防火墙状态，方便 REALITY 协议直接使用 443
@@ -119,6 +118,6 @@ exec bash
 
 脚本会修改系统 hostname，并写入 `/etc/hosts` 的 `127.0.1.1` 记录。`host-ip.sh` 使用 `ip-1-2-3-4` 格式，而不是直接使用 `1.2.3.4`，避免 Bash 提示符只显示第一个点前内容的问题。
 
-脚本通过公网 IP 查询接口识别时区。如果接口不可用，会自动回退到 `Asia/Shanghai`。
+脚本通过公网 IP 查询接口识别时区。如果接口不可用，会自动回退到 `America/Los_Angeles`。
 
 脚本默认面向 Debian 系服务器。其他发行版不保证兼容。
