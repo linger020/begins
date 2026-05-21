@@ -8,11 +8,22 @@ echo "==> 检查系统"
 cat /etc/os-release || true
 uname -a
 
-echo "==> 设置时区为 Asia/Shanghai"
-timedatectl set-timezone Asia/Shanghai || true
-
-echo "==> 更新系统软件源和基础包"
+echo "==> 更新软件源并安装基础网络工具"
 apt update
+apt install -y curl ca-certificates
+
+echo "==> 根据公网 IP 自动设置时区"
+TIMEZONE="$(curl -4 -fsS --max-time 8 https://ipapi.co/timezone 2>/dev/null || true)"
+
+if [ -n "$TIMEZONE" ] && timedatectl list-timezones | grep -qx "$TIMEZONE"; then
+  timedatectl set-timezone "$TIMEZONE"
+  echo "已设置时区：$TIMEZONE"
+else
+  timedatectl set-timezone Asia/Shanghai || true
+  echo "自动识别时区失败，已回退到：Asia/Shanghai"
+fi
+
+echo "==> 更新系统基础包"
 apt upgrade -y
 
 echo "==> 安装常用工具"
@@ -64,6 +75,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/linger020/server-scripts/mai
 echo "==> 显示当前状态"
 echo "公网 IPv4:"
 curl -4 -fsS --max-time 8 https://ip.sb || true
+echo
+echo "当前时区:"
+timedatectl | grep "Time zone" || true
 echo
 echo "BBR 状态:"
 sysctl net.ipv4.tcp_congestion_control || true
