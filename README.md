@@ -1,17 +1,18 @@
-# server-scripts
+# Begins
 
-轻量 Linux VPS 工具脚本，用于快速服务器配置和维护。
+Begins 是一个面向 Debian VPS 的轻量服务器初始化与运维菜单工具。它把常用初始化、系统调优、证书工具、测速和状态检查集中到一个命令里，适合新服务器快速处理基础环境。
 
 ## 脚本列表
 
 | 脚本 | 用途 |
 |---|---|
 | `install-begins.sh` | 安装 `begins` 命令到 `/usr/local/bin/begins`。 |
-| `begins.sh` | 类似 3X-UI 的数字选择菜单，输入 `begins` 后可选择初始化、调优、安装 certbot、安装 3x-ui、回程测试等操作。 |
+| `uninstall-begins.sh` | 卸载 `/usr/local/bin/begins`。 |
+| `begins.sh` | Begins 主菜单脚本，输入 `begins` 后通过数字选择执行初始化、调优、测速、状态检查等操作。 |
 | `host-ip.sh` | 将服务器 hostname 改成公网 IP 格式，并把终端提示符 `root@ip-*` 设置为红色。 |
-| `init-server.sh` | Debian 新服务器初始化：更新系统、安装常用工具和 certbot、根据公网 IP 自动设置时区、开启 BBR、提高文件句柄和进程限制、写入 TCP/内核性能参数、限制 journald 日志大小、安装 hostname/IP 显示脚本。默认不安装 nginx、ufw、fail2ban，避免占用 443 或影响 REALITY。 |
+| `init-server.sh` | Debian 新服务器初始化：更新系统、安装常用工具和 certbot、根据公网 IP 自动设置时区、开启 BBR、提高文件句柄和进程限制、写入 TCP/内核性能参数、限制 journald 日志大小、安装 hostname/IP 显示脚本。默认不安装 nginx、ufw、fail2ban，避免占用 443 或改变防火墙状态。 |
 
-## 安装 begins 菜单
+## 安装 Begins
 
 适用于 Debian 12 / Debian 系 VPS。建议在 `root` 用户下执行。
 
@@ -25,23 +26,39 @@ bash <(curl -fsSL https://raw.githubusercontent.com/linger020/server-scripts/mai
 begins
 ```
 
-菜单包含：
+当前菜单包含：
 
-- Debian 初始化 + 常用包 + certbot（REALITY 友好，不装 nginx/ufw/fail2ban）
+- Debian 初始化 + 常用包 + certbot，不安装 nginx/ufw/fail2ban
 - 修改 hostname 为公网 IP + 红色提示符
 - 应用高并发/TCP/BBR 参数
 - 根据公网 IP 设置时区
 - 单独安装 certbot
-- 安装 3x-ui
+- 安装 Speedtest
+- 运行 Speedtest
 - 安装 backtrace 回程测试
 - 查看监听端口
 - 查看系统状态
 - 查看 begins 日志
 - 更新 begins
+- 卸载 begins
+
+## 卸载 Begins
+
+菜单内选择：
+
+```text
+13. 卸载 begins
+```
+
+或者直接执行：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/linger020/server-scripts/main/uninstall-begins.sh)
+```
 
 ## 一键初始化 Debian 服务器
 
-直接初始化也可以执行：
+不进入菜单，直接初始化也可以执行：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/linger020/server-scripts/main/init-server.sh)
@@ -53,7 +70,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/linger020/server-scripts/mai
 - 根据公网 IP 自动识别并设置系统时区，识别失败时回退到 `America/Los_Angeles`
 - 执行 `apt update` 和 `apt upgrade -y`
 - 安装常用运维工具，例如 `curl`、`wget`、`aria2`、`vim`、`rsync`、`sqlite3`、`jq`、`yq`、`tmux`、`tcpdump`、`nmap`、`build-essential`、`certbot` 等
-- 不默认安装 `nginx`、`ufw`、`fail2ban`，避免占用 `443` 或改变防火墙状态，方便 REALITY 协议直接使用 443
+- 不默认安装 `nginx`、`ufw`、`fail2ban`，避免占用 `443` 或改变防火墙状态
 - 启用 `cron`、`ssh`、`sysstat`、`vnstat`
 - 开启 BBR，并写入较高并发 TCP 参数
 - 将文件句柄和进程限制提高到 `1048576`
