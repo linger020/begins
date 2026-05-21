@@ -7,7 +7,7 @@
 | 脚本 | 用途 |
 |---|---|
 | `host-ip.sh` | 将服务器 hostname 改成公网 IP 格式，并把终端提示符 `root@ip-*` 设置为红色。 |
-| `init-server.sh` | Debian 新服务器初始化：更新系统、安装常用工具、根据公网 IP 自动设置时区、开启 BBR、限制 journald 日志大小、安装 hostname/IP 显示脚本。 |
+| `init-server.sh` | Debian 新服务器初始化：更新系统、安装常用工具、根据公网 IP 自动设置时区、开启 BBR、提高文件句柄和进程限制、写入 TCP/内核性能参数、限制 journald 日志大小、安装 hostname/IP 显示脚本。 |
 
 ## 一键初始化 Debian 服务器
 
@@ -22,18 +22,25 @@ bash <(curl -fsSL https://raw.githubusercontent.com/linger020/server-scripts/mai
 - 清理当前终端代理变量
 - 根据公网 IP 自动识别并设置系统时区，识别失败时回退到 `Asia/Shanghai`
 - 执行 `apt update` 和 `apt upgrade -y`
-- 安装常用运维工具，例如 `curl`、`wget`、`vim`、`rsync`、`sqlite3`、`jq`、`nginx`、`certbot`、`tmux` 等
-- 启用 `cron` 和 `ssh`
-- 开启 BBR
-- 设置文件句柄限制
+- 安装常用运维工具，例如 `curl`、`wget`、`aria2`、`vim`、`rsync`、`sqlite3`、`jq`、`yq`、`nginx`、`certbot`、`tmux`、`tcpdump`、`nmap`、`build-essential` 等
+- 启用 `cron`、`ssh`、`sysstat`、`vnstat`
+- 开启 BBR，并写入较高并发 TCP 参数
+- 将文件句柄和进程限制提高到 `1048576`
+- 设置 systemd 默认 `NOFILE / NPROC` 限制
 - 限制 systemd journald 日志占用空间
 - 调用 `host-ip.sh` 设置 hostname 和红色终端提示符
-- 输出公网 IP、当前时区、BBR 状态、监听端口、磁盘和内存状态
+- 输出公网 IP、当前时区、BBR 状态、核心 sysctl 参数、监听端口、磁盘和内存状态
 
 执行完成后建议重新登录 SSH，或者执行：
 
 ```bash
 exec bash
+```
+
+部分 systemd 限制需要重新登录或重启后完全生效。需要完全应用时执行：
+
+```bash
+reboot
 ```
 
 ## 单独修改 hostname 为公网 IP
@@ -56,6 +63,21 @@ root@ip-154-21-94-9:~#
 bash <(curl -fsSL https://raw.githubusercontent.com/linger020/server-scripts/main/host-ip.sh)
 exec bash
 ```
+
+## 性能参数说明
+
+`init-server.sh` 会写入 `/etc/sysctl.d/99-server-performance.conf`，主要包含：
+
+- BBR：`net.ipv4.tcp_congestion_control=bbr`
+- 队列：`net.core.default_qdisc=fq`
+- 连接队列：`net.core.somaxconn=65535`
+- SYN 队列：`net.ipv4.tcp_max_syn_backlog=65535`
+- 本地端口范围：`net.ipv4.ip_local_port_range=1024 65535`
+- TCP buffer：提高 `rmem / wmem` 上限
+- TIME_WAIT：启用 `tcp_tw_reuse`，缩短 `tcp_fin_timeout`
+- 文件句柄：`fs.file-max=2097152`、`fs.nr_open=2097152`
+
+这些参数偏高并发 VPS 使用，不是保守默认配置。
 
 ## 注意事项
 
