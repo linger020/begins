@@ -114,6 +114,27 @@ set_timezone_by_ip() {
   fi
 }
 
+install_speedtest() {
+  apt update
+  apt install -y curl ca-certificates
+  curl -fsSL https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | bash
+  apt install -y speedtest
+}
+
+run_speedtest() {
+  if ! command -v speedtest >/dev/null 2>&1; then
+    echo "未检测到 speedtest，先安装。"
+    install_speedtest
+  fi
+  speedtest
+}
+
+uninstall_begins() {
+  rm -f /usr/local/bin/begins
+  echo "begins 已卸载。"
+  exit 0
+}
+
 show_menu() {
   clear
   echo "╔────────────────────────────────────────────────╗"
@@ -127,13 +148,15 @@ show_menu() {
   echo "│   4. 根据公网 IP 设置时区                      │"
   echo "│────────────────────────────────────────────────│"
   echo "│   5. 单独安装 certbot                          │"
-  echo "│   6. 安装 3x-ui                                │"
-  echo "│   7. 安装 backtrace 回程测试                   │"
+  echo "│   6. 安装 Speedtest                            │"
+  echo "│   7. 运行 Speedtest                            │"
+  echo "│   8. 安装 backtrace 回程测试                   │"
   echo "│────────────────────────────────────────────────│"
-  echo "│   8. 查看监听端口                              │"
-  echo "│   9. 查看系统状态                              │"
-  echo "│  10. 查看 begins 日志                          │"
-  echo "│  11. 更新 begins                               │"
+  echo "│   9. 查看监听端口                              │"
+  echo "│  10. 查看系统状态                              │"
+  echo "│  11. 查看 begins 日志                          │"
+  echo "│  12. 更新 begins                               │"
+  echo "│  13. 卸载 begins                               │"
   echo "╚────────────────────────────────────────────────╝"
   echo
   echo "Reality mode: nginx not installed by default, 443 reserved"
@@ -146,7 +169,7 @@ touch "$LOG_FILE"
 
 while true; do
   show_menu
-  read -r -p "Please enter your selection [0-11]: " choice
+  read -r -p "Please enter your selection [0-13]: " choice
   case "$choice" in
     0) exit 0 ;;
     1) bash <(curl -fsSL "$BASE_URL/init-server.sh"); pause ;;
@@ -154,12 +177,14 @@ while true; do
     3) apply_tuning; pause ;;
     4) set_timezone_by_ip; pause ;;
     5) apt update && apt install -y certbot; pause ;;
-    6) bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh); pause ;;
-    7) curl -fsSL https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh | bash; pause ;;
-    8) ss -tlnp; pause ;;
-    9) show_status; pause ;;
-    10) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
-    11) curl -fsSL -o /usr/local/bin/begins "$BASE_URL/begins.sh" && chmod +x /usr/local/bin/begins && echo "begins 已更新"; pause ;;
-    *) echo "[ERR] Please enter the correct number [0-11]"; sleep 1 ;;
+    6) install_speedtest; pause ;;
+    7) run_speedtest; pause ;;
+    8) curl -fsSL https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh | bash; pause ;;
+    9) ss -tlnp; pause ;;
+    10) show_status; pause ;;
+    11) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
+    12) curl -fsSL -o /usr/local/bin/begins "$BASE_URL/begins.sh" && chmod +x /usr/local/bin/begins && echo "begins 已更新"; pause ;;
+    13) uninstall_begins ;;
+    *) echo "[ERR] Please enter the correct number [0-13]"; sleep 1 ;;
   esac
 done
