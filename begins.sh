@@ -129,6 +129,14 @@ run_speedtest() {
   speedtest
 }
 
+run_backtrace() {
+  if ! command -v backtrace >/dev/null 2>&1; then
+    echo "未检测到 backtrace，先安装。"
+    curl -fsSL https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh | bash
+  fi
+  backtrace
+}
+
 uninstall_begins() {
   rm -f /usr/local/bin/begins
   echo "begins 已卸载。"
@@ -150,7 +158,7 @@ show_menu() {
   echo "│   5. 单独安装 certbot                          │"
   echo "│   6. 安装 Speedtest                            │"
   echo "│   7. 运行 Speedtest                            │"
-  echo "│   8. 安装 backtrace 回程测试                   │"
+  echo "│   8. 测试网络回程                              │"
   echo "│────────────────────────────────────────────────│"
   echo "│   9. 查看监听端口                              │"
   echo "│  10. 查看系统状态                              │"
@@ -179,7 +187,7 @@ while true; do
     5) apt update && apt install -y certbot; pause ;;
     6) install_speedtest; pause ;;
     7) run_speedtest; pause ;;
-    8) curl -fsSL https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh | bash; pause ;;
+    8) run_backtrace; pause ;;
     9) ss -tlnp; pause ;;
     10) show_status; pause ;;
     11) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
