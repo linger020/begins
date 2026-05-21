@@ -34,21 +34,6 @@ show_status() {
   free -h
 }
 
-install_common() {
-  export DEBIAN_FRONTEND=noninteractive
-  run_cmd "更新 apt 索引" apt update
-  run_cmd "安装常用工具，不安装 nginx/ufw/fail2ban" apt install -y \
-    curl wget aria2 axel vim nano ca-certificates gnupg lsb-release apt-transport-https \
-    unzip zip tar gzip bzip2 xz-utils zstd p7zip-full \
-    htop btop iftop iotop nload vnstat sysstat dstat \
-    net-tools iproute2 iputils-ping dnsutils traceroute mtr-tiny whois tcpdump nmap netcat-openbsd telnet \
-    socat cron rsync sqlite3 jq yq certbot \
-    openssh-client openssh-server logrotate \
-    python3 python3-pip python3-venv \
-    build-essential cmake pkg-config autoconf automake libtool \
-    openssl lsof psmisc sudo screen tmux tree file locales acl
-}
-
 apply_tuning() {
   echo "==> 写入高并发限制和 TCP 参数"
   cat > /etc/security/limits.d/99-server-high-limit.conf <<'LIMITS'
@@ -135,20 +120,20 @@ show_menu() {
   echo "│   Begins Server Management Script              │"
   echo "│   0. Exit Script                               │"
   echo "│────────────────────────────────────────────────│"
-  echo "│   1. Debian 初始化（REALITY 友好，不装 nginx） │"
+  echo "│   1. Debian 初始化 + 常用包 + certbot          │"
+  echo "│      REALITY 友好，不装 nginx/ufw/fail2ban     │"
   echo "│   2. 修改 hostname 为公网 IP + 红色提示符      │"
-  echo "│   3. 安装常用 apt 包（含 certbot，不含 nginx） │"
-  echo "│   4. 应用高并发/TCP/BBR 参数                  │"
-  echo "│   5. 根据公网 IP 设置时区                      │"
+  echo "│   3. 应用高并发/TCP/BBR 参数                  │"
+  echo "│   4. 根据公网 IP 设置时区                      │"
   echo "│────────────────────────────────────────────────│"
-  echo "│   6. 安装 certbot                              │"
-  echo "│   7. 安装 3x-ui                                │"
-  echo "│   8. 安装 backtrace 回程测试                   │"
+  echo "│   5. 单独安装 certbot                          │"
+  echo "│   6. 安装 3x-ui                                │"
+  echo "│   7. 安装 backtrace 回程测试                   │"
   echo "│────────────────────────────────────────────────│"
-  echo "│   9. 查看监听端口                              │"
-  echo "│  10. 查看系统状态                              │"
-  echo "│  11. 查看 begins 日志                          │"
-  echo "│  12. 更新 begins                               │"
+  echo "│   8. 查看监听端口                              │"
+  echo "│   9. 查看系统状态                              │"
+  echo "│  10. 查看 begins 日志                          │"
+  echo "│  11. 更新 begins                               │"
   echo "╚────────────────────────────────────────────────╝"
   echo
   echo "Reality mode: nginx not installed by default, 443 reserved"
@@ -161,21 +146,20 @@ touch "$LOG_FILE"
 
 while true; do
   show_menu
-  read -r -p "Please enter your selection [0-12]: " choice
+  read -r -p "Please enter your selection [0-11]: " choice
   case "$choice" in
     0) exit 0 ;;
     1) bash <(curl -fsSL "$BASE_URL/init-server.sh"); pause ;;
     2) bash <(curl -fsSL "$BASE_URL/host-ip.sh"); pause ;;
-    3) install_common; pause ;;
-    4) apply_tuning; pause ;;
-    5) set_timezone_by_ip; pause ;;
-    6) apt update && apt install -y certbot; pause ;;
-    7) bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh); pause ;;
-    8) curl -fsSL https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh | bash; pause ;;
-    9) ss -tlnp; pause ;;
-    10) show_status; pause ;;
-    11) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
-    12) curl -fsSL -o /usr/local/bin/begins "$BASE_URL/begins.sh" && chmod +x /usr/local/bin/begins && echo "begins 已更新"; pause ;;
-    *) echo "[ERR] Please enter the correct number [0-12]"; sleep 1 ;;
+    3) apply_tuning; pause ;;
+    4) set_timezone_by_ip; pause ;;
+    5) apt update && apt install -y certbot; pause ;;
+    6) bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh); pause ;;
+    7) curl -fsSL https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh | bash; pause ;;
+    8) ss -tlnp; pause ;;
+    9) show_status; pause ;;
+    10) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
+    11) curl -fsSL -o /usr/local/bin/begins "$BASE_URL/begins.sh" && chmod +x /usr/local/bin/begins && echo "begins 已更新"; pause ;;
+    *) echo "[ERR] Please enter the correct number [0-11]"; sleep 1 ;;
   esac
 done
