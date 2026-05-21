@@ -124,8 +124,8 @@ set_timezone_by_ip() {
     timedatectl set-timezone "$TZ_NAME"
     echo "已设置时区：$TZ_NAME"
   else
-    timedatectl set-timezone Asia/Shanghai || true
-    echo "识别失败，已回退到 Asia/Shanghai"
+    timedatectl set-timezone America/Los_Angeles || true
+    echo "识别失败，已回退到 America/Los_Angeles"
   fi
 }
 
