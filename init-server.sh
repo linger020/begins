@@ -35,13 +35,13 @@ if [ -n "$TIMEZONE" ] && timedatectl list-timezones | grep -qx "$TIMEZONE"; then
   timedatectl set-timezone "$TIMEZONE" >> "$LOG_FILE" 2>&1
   echo "已设置时区：$TIMEZONE"
 else
-  timedatectl set-timezone Asia/Shanghai >> "$LOG_FILE" 2>&1 || true
-  echo "自动识别时区失败，已回退到：Asia/Shanghai"
+  timedatectl set-timezone America/Los_Angeles >> "$LOG_FILE" 2>&1 || true
+  echo "自动识别时区失败，已回退到：America/Los_Angeles"
 fi
 
 run "更新系统基础包" apt upgrade -y
 
-step "安装常用工具和运维组件，不安装 nginx/certbot/ufw/fail2ban 等会占用端口或改变防火墙的服务"
+step "安装常用工具和运维组件，不安装 nginx/ufw/fail2ban 等会占用端口或改变防火墙的服务"
 apt install -y \
   curl wget aria2 axel vim nano ca-certificates gnupg lsb-release apt-transport-https \
   unzip zip tar gzip bzip2 xz-utils zstd p7zip-full \
@@ -49,7 +49,7 @@ apt install -y \
   net-tools iproute2 iputils-ping dnsutils traceroute mtr-tiny whois tcpdump nmap netcat-openbsd telnet \
   socat cron rsync sqlite3 jq yq \
   openssh-client openssh-server \
-  logrotate \
+  logrotate certbot \
   python3 python3-pip python3-venv \
   build-essential cmake pkg-config autoconf automake libtool \
   openssl lsof psmisc sudo screen tmux tree file locales acl >> "$LOG_FILE" 2>&1
@@ -162,5 +162,6 @@ echo "${CURRENT_TZ:-当前时区：unknown}"
 echo "TCP 拥塞控制：${BBR_STATUS:-unknown}"
 echo "当前 shell 文件句柄：${NOFILE_LIMIT:-unknown}"
 echo "详细日志：$LOG_FILE"
-echo "==> 初始化完成。默认未安装 nginx/certbot/ufw/fail2ban，避免占用 443 或影响 REALITY。"
+echo "==> 初始化完成。默认安装 certbot，但不安装 nginx/ufw/fail2ban，避免占用 443 或影响 REALITY。"
+echo "==> certbot 只安装工具本身，不会自动申请证书，也不会占用 443。"
 echo "==> 部分 systemd 限制需要重新登录 SSH 或重启后完全生效。建议执行：exec bash，或直接 reboot"
