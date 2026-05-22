@@ -16,6 +16,15 @@ is_domain() {
   [[ "$value" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$ ]]
 }
 
+clear_proxy_env() {
+  if env | grep -qiE '^(http_proxy|https_proxy|all_proxy|HTTP_PROXY|HTTPS_PROXY|ALL_PROXY)='; then
+    echo "==> 检测到代理环境变量，certbot 申请证书前将临时清理代理变量"
+  fi
+
+  unset http_proxy https_proxy all_proxy no_proxy
+  unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY
+}
+
 install_certbot() {
   if ! command -v certbot >/dev/null 2>&1; then
     echo "==> 安装 certbot"
@@ -86,6 +95,7 @@ main() {
     exit 1
   fi
 
+  clear_proxy_env
   install_certbot
   show_port_80
   issue_cert "$domain" 2>&1 | tee -a "$LOG_FILE"
