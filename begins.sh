@@ -141,6 +141,10 @@ run_xuicert() {
   bash <(curl -fsSL "$BASE_URL/certbot-xuicert.sh")
 }
 
+run_xui_system_full_tune() {
+  bash <(curl -fsSL "$BASE_URL/begins/xui-system-full-tune.sh")
+}
+
 uninstall_begins() {
   rm -f /usr/local/bin/begins
   echo "begins 已卸载。"
@@ -170,6 +174,9 @@ show_menu() {
   echo "│  12. 查看 begins 日志                          │"
   echo "│  13. 更新 begins                               │"
   echo "│  14. 卸载 begins                               │"
+  echo "│────────────────────────────────────────────────│"
+  echo "│  15. 3X-UI/Xray 系统层暴力优化                 │"
+  echo "│      只改系统，不改 Xray/入站/iptables         │"
   echo "╚────────────────────────────────────────────────╝"
   echo
   echo "Reality mode: nginx not installed by default, 443 reserved"
@@ -182,7 +189,7 @@ touch "$LOG_FILE"
 
 while true; do
   show_menu
-  read -r -p "Please enter your selection [0-14]: " choice
+  read -r -p "Please enter your selection [0-15]: " choice
   case "$choice" in
     0) exit 0 ;;
     1) bash <(curl -fsSL "$BASE_URL/init-server.sh"); pause ;;
@@ -199,6 +206,7 @@ while true; do
     12) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
     13) curl -fsSL -o /usr/local/bin/begins "$BASE_URL/begins.sh" && chmod +x /usr/local/bin/begins && echo "begins 已更新"; pause ;;
     14) uninstall_begins ;;
-    *) echo "[ERR] Please enter the correct number [0-14]"; sleep 1 ;;
+    15) run_xui_system_full_tune; pause ;;
+    *) echo "[ERR] Please enter the correct number [0-15]"; sleep 1 ;;
   esac
 done
