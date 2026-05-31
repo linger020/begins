@@ -248,6 +248,16 @@ uninstall_begins() {
   exit 0
 }
 
+self_update_begins() {
+  local url
+  url="$BASE_URL/begins.sh?ts=$(date +%s)"
+
+  curl -fsSL -H 'Cache-Control: no-cache' -o /usr/local/bin/begins "$url"
+  chmod +x /usr/local/bin/begins
+  echo "begins 已更新，正在重新加载新菜单..."
+  exec /usr/local/bin/begins
+}
+
 show_menu() {
   clear
   echo "╔────────────────────────────────────────────────╗"
@@ -312,7 +322,7 @@ while true; do
     12) show_status; pause ;;
     13) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
     14) run_xui_system_full_tune; pause ;;
-    15) curl -fsSL -o /usr/local/bin/begins "$BASE_URL/begins.sh" && chmod +x /usr/local/bin/begins && echo "begins 已更新"; pause ;;
+    15) self_update_begins ;;
     16) uninstall_begins ;;
     *) echo "[ERR] Please enter the correct number [0-16]"; sleep 1 ;;
   esac
