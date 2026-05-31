@@ -141,6 +141,10 @@ run_xuicert() {
   bash <(curl -fsSL "$BASE_URL/certbot-xuicert.sh")
 }
 
+run_debian_official_source() {
+  bash <(curl -fsSL "$BASE_URL/debian-official-source.sh")
+}
+
 run_xui_system_full_tune() {
   bash <(curl -fsSL "$BASE_URL/begins/xui-system-full-tune.sh")
 }
@@ -157,26 +161,35 @@ show_menu() {
   echo "│   Begins Server Management Script              │"
   echo "│   0. Exit Script                               │"
   echo "│────────────────────────────────────────────────│"
+  echo "│   基础初始化                                   │"
   echo "│   1. Debian 初始化 + 常用包 + certbot          │"
   echo "│      REALITY 友好，不装 nginx/ufw/fail2ban     │"
-  echo "│   2. 修改 hostname 为公网 IP + 红色提示符      │"
-  echo "│   3. 应用高并发/TCP/BBR 参数                  │"
+  echo "│   2. 切换为 Debian 官方源                      │"
+  echo "│   3. 修改 hostname 为公网 IP + 红色提示符      │"
   echo "│   4. 根据公网 IP 设置时区                      │"
+  echo "│   5. 应用高并发/TCP/BBR 参数                  │"
   echo "│────────────────────────────────────────────────│"
-  echo "│   5. 单独安装 certbot                          │"
-  echo "│   6. 申请证书并软链接到 /root/xuicert          │"
-  echo "│   7. 安装 Speedtest                            │"
-  echo "│   8. 运行 Speedtest                            │"
-  echo "│   9. 测试网络回程                              │"
+  echo "│   证书工具                                     │"
+  echo "│   6. 单独安装 certbot                          │"
+  echo "│   7. 申请证书并软链接到 /root/xuicert          │"
   echo "│────────────────────────────────────────────────│"
-  echo "│  10. 查看监听端口                              │"
-  echo "│  11. 查看系统状态                              │"
-  echo "│  12. 查看 begins 日志                          │"
-  echo "│  13. 更新 begins                               │"
-  echo "│  14. 卸载 begins                               │"
+  echo "│   网络测试                                     │"
+  echo "│   8. 安装 Speedtest                            │"
+  echo "│   9. 运行 Speedtest                            │"
+  echo "│  10. 测试网络回程                              │"
   echo "│────────────────────────────────────────────────│"
-  echo "│  15. 3X-UI/Xray 系统层暴力优化                 │"
+  echo "│   系统查看                                     │"
+  echo "│  11. 查看监听端口                              │"
+  echo "│  12. 查看系统状态                              │"
+  echo "│  13. 查看 begins 日志                          │"
+  echo "│────────────────────────────────────────────────│"
+  echo "│   3X-UI / Xray                                 │"
+  echo "│  14. 3X-UI/Xray 系统层暴力优化                 │"
   echo "│      只改系统，不改 Xray/入站/iptables         │"
+  echo "│────────────────────────────────────────────────│"
+  echo "│   管理                                         │"
+  echo "│  15. 更新 begins                               │"
+  echo "│  16. 卸载 begins                               │"
   echo "╚────────────────────────────────────────────────╝"
   echo
   echo "Reality mode: nginx not installed by default, 443 reserved"
@@ -189,24 +202,25 @@ touch "$LOG_FILE"
 
 while true; do
   show_menu
-  read -r -p "Please enter your selection [0-15]: " choice
+  read -r -p "Please enter your selection [0-16]: " choice
   case "$choice" in
     0) exit 0 ;;
     1) bash <(curl -fsSL "$BASE_URL/init-server.sh"); pause ;;
-    2) bash <(curl -fsSL "$BASE_URL/host-ip.sh"); pause ;;
-    3) apply_tuning; pause ;;
+    2) run_debian_official_source; pause ;;
+    3) bash <(curl -fsSL "$BASE_URL/host-ip.sh"); pause ;;
     4) set_timezone_by_ip; pause ;;
-    5) apt update && apt install -y certbot; pause ;;
-    6) run_xuicert; pause ;;
-    7) install_speedtest; pause ;;
-    8) run_speedtest; pause ;;
-    9) run_backtrace; pause ;;
-    10) ss -tlnp; pause ;;
-    11) show_status; pause ;;
-    12) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
-    13) curl -fsSL -o /usr/local/bin/begins "$BASE_URL/begins.sh" && chmod +x /usr/local/bin/begins && echo "begins 已更新"; pause ;;
-    14) uninstall_begins ;;
-    15) run_xui_system_full_tune; pause ;;
-    *) echo "[ERR] Please enter the correct number [0-15]"; sleep 1 ;;
+    5) apply_tuning; pause ;;
+    6) apt update && apt install -y certbot; pause ;;
+    7) run_xuicert; pause ;;
+    8) install_speedtest; pause ;;
+    9) run_speedtest; pause ;;
+    10) run_backtrace; pause ;;
+    11) ss -tlnp; pause ;;
+    12) show_status; pause ;;
+    13) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
+    14) run_xui_system_full_tune; pause ;;
+    15) curl -fsSL -o /usr/local/bin/begins "$BASE_URL/begins.sh" && chmod +x /usr/local/bin/begins && echo "begins 已更新"; pause ;;
+    16) uninstall_begins ;;
+    *) echo "[ERR] Please enter the correct number [0-16]"; sleep 1 ;;
   esac
 done
