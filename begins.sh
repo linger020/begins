@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-BASE_URL="https://raw.githubusercontent.com/linger020/server-scripts/main"
+BASE_URL="https://raw.githubusercontent.com/linger020/begins/main"
 LOG_FILE="/var/log/begins.log"
 
 need_root() {
@@ -20,6 +20,18 @@ run_cmd() {
   echo "==> $1"
   shift
   "$@" 2>&1 | tee -a "$LOG_FILE"
+}
+
+run_remote_script() {
+  local url
+  local tmp_file
+
+  url="$1"
+  tmp_file="$(mktemp)"
+
+  curl -fsSL -H 'Cache-Control: no-cache' -o "$tmp_file" "$url"
+  bash "$tmp_file"
+  rm -f "$tmp_file"
 }
 
 show_status() {
@@ -209,37 +221,63 @@ set_timezone_by_ip() {
     timedatectl set-timezone America/Los_Angeles || true
     echo "识别失败，已回退到 America/Los_Angeles"
   fi
+  timedatectl
+}
+
+set_timezone_los_angeles() {
+  timedatectl set-timezone America/Los_Angeles || {
+    echo "设置洛杉矶时区失败"
+    return 1
+  }
+
+  echo "已设置时区为 America/Los_Angeles"
+  timedatectl
 }
 
 install_speedtest() {
+  run_remote_script "https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh"
   apt update
-  apt install -y curl ca-certificates
-  curl -fsSL https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | bash
   apt install -y speedtest
 }
 
-run_speedtest() {
-  if ! command -v speedtest >/dev/null 2>&1; then
-    echo "未检测到 speedtest，先安装。"
-    install_speedtest
+ensure_speedtest_installed() {
+  if command -v speedtest >/dev/null 2>&1; then
+    return 0
   fi
+
+  echo "未检测到 speedtest，正在自动安装..."
+  install_speedtest || {
+    echo "Speedtest 安装失败"
+    return 1
+  }
+
+  if ! command -v speedtest >/dev/null 2>&1; then
+    echo "Speedtest 安装后仍未检测到 speedtest 命令"
+    return 1
+  fi
+}
+
+run_speedtest() {
+  ensure_speedtest_installed || return 1
+
+  echo "开始运行 Speedtest..."
   speedtest
 }
 
 run_backtrace() {
   if ! command -v backtrace >/dev/null 2>&1; then
     echo "未检测到 backtrace，先安装。"
-    curl -fsSL https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh | bash
+    run_remote_script "https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh"
   fi
   backtrace
 }
 
 run_xuicert() {
-  bash <(curl -fsSL "$BASE_URL/certbot-xuicert.sh")
+  run_remote_script "$BASE_URL/certbot-xuicert.sh"
 }
 
 run_xui_system_full_tune() {
-  bash <(curl -fsSL "$BASE_URL/begins/xui-system-full-tune.sh")
+  run_remote_script "$BASE_URL/begins/xui-system-full-tune.sh"
 }
 
 uninstall_begins() {
@@ -270,14 +308,14 @@ show_menu() {
   echo "│   2. 切换为 Debian 官方源                      │"
   echo "│   3. 修改 hostname 为公网 IP + 红色提示符      │"
   echo "│   4. 根据公网 IP 设置时区                      │"
-  echo "│   5. 应用高并发/TCP/BBR 参数                  │"
+  echo "│   5. 设置时区为美国洛杉矶                      │"
+  echo "│   6. 应用高并发/TCP/BBR 参数                  │"
   echo "│────────────────────────────────────────────────│"
   echo "│   证书工具                                     │"
-  echo "│   6. 单独安装 certbot                          │"
-  echo "│   7. 申请证书并软链接到 /root/xuicert          │"
+  echo "│   7. 单独安装 certbot                          │"
+  echo "│   8. 申请证书并软链接到 /root/xuicert          │"
   echo "│────────────────────────────────────────────────│"
   echo "│   网络测试                                     │"
-  echo "│   8. 安装 Speedtest                            │"
   echo "│   9. 运行 Speedtest                            │"
   echo "│  10. 测试网络回程                              │"
   echo "│────────────────────────────────────────────────│"
@@ -308,14 +346,14 @@ while true; do
   read -r -p "Please enter your selection [0-16]: " choice
   case "$choice" in
     0) exit 0 ;;
-    1) bash <(curl -fsSL "$BASE_URL/init-server.sh"); pause ;;
+    1) run_remote_script "$BASE_URL/init-server.sh"; pause ;;
     2) run_debian_official_source; pause ;;
-    3) bash <(curl -fsSL "$BASE_URL/host-ip.sh"); pause ;;
+    3) run_remote_script "$BASE_URL/host-ip.sh"; pause ;;
     4) set_timezone_by_ip; pause ;;
-    5) apply_tuning; pause ;;
-    6) apt update && apt install -y certbot; pause ;;
-    7) run_xuicert; pause ;;
-    8) install_speedtest; pause ;;
+    5) set_timezone_los_angeles; pause ;;
+    6) apply_tuning; pause ;;
+    7) apt update && apt install -y certbot; pause ;;
+    8) run_xuicert; pause ;;
     9) run_speedtest; pause ;;
     10) run_backtrace; pause ;;
     11) ss -tlnp; pause ;;
