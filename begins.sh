@@ -16,17 +16,9 @@ pause() {
   read -r -p "按 Enter 返回菜单..." _
 }
 
-run_cmd() {
-  echo "==> $1"
-  shift
-  "$@" 2>&1 | tee -a "$LOG_FILE"
-}
-
 run_remote_script() {
-  local url
+  local url="$1"
   local tmp_file
-
-  url="$1"
   tmp_file="$(mktemp)"
 
   curl -fsSL -H 'Cache-Control: no-cache' -o "$tmp_file" "$url"
@@ -44,73 +36,6 @@ show_status() {
   df -h
   echo
   free -h
-}
-
-apply_tuning() {
-  echo "==> 写入高并发限制和 TCP 参数"
-  cat > /etc/security/limits.d/99-server-high-limit.conf <<'LIMITS'
-* soft nofile 1048576
-* hard nofile 1048576
-* soft nproc 1048576
-* hard nproc 1048576
-root soft nofile 1048576
-root hard nofile 1048576
-root soft nproc 1048576
-root hard nproc 1048576
-LIMITS
-
-  mkdir -p /etc/systemd/system.conf.d /etc/systemd/user.conf.d
-  cat > /etc/systemd/system.conf.d/99-high-limit.conf <<'SYSTEMD_LIMITS'
-[Manager]
-DefaultLimitNOFILE=1048576
-DefaultLimitNPROC=1048576
-SYSTEMD_LIMITS
-
-  cat > /etc/systemd/user.conf.d/99-high-limit.conf <<'SYSTEMD_USER_LIMITS'
-[Manager]
-DefaultLimitNOFILE=1048576
-DefaultLimitNPROC=1048576
-SYSTEMD_USER_LIMITS
-
-  cat > /etc/sysctl.d/99-server-performance.conf <<'SYSCTL'
-fs.file-max = 2097152
-fs.nr_open = 2097152
-net.core.default_qdisc = fq
-net.ipv4.tcp_congestion_control = bbr
-net.core.somaxconn = 65535
-net.core.netdev_max_backlog = 250000
-net.ipv4.tcp_max_syn_backlog = 65535
-net.ipv4.ip_local_port_range = 1024 65535
-net.core.rmem_default = 262144
-net.core.wmem_default = 262144
-net.core.rmem_max = 67108864
-net.core.wmem_max = 67108864
-net.ipv4.tcp_rmem = 4096 87380 67108864
-net.ipv4.tcp_wmem = 4096 65536 67108864
-net.ipv4.udp_rmem_min = 8192
-net.ipv4.udp_wmem_min = 8192
-net.ipv4.tcp_fastopen = 3
-net.ipv4.tcp_mtu_probing = 1
-net.ipv4.tcp_slow_start_after_idle = 0
-net.ipv4.tcp_no_metrics_save = 1
-net.ipv4.tcp_tw_reuse = 1
-net.ipv4.tcp_fin_timeout = 15
-net.ipv4.tcp_keepalive_time = 600
-net.ipv4.tcp_keepalive_intvl = 30
-net.ipv4.tcp_keepalive_probes = 5
-net.ipv4.tcp_syn_retries = 3
-net.ipv4.tcp_synack_retries = 3
-net.ipv4.tcp_max_tw_buckets = 2000000
-net.ipv4.tcp_window_scaling = 1
-net.ipv4.tcp_sack = 1
-net.ipv4.tcp_timestamps = 1
-vm.swappiness = 10
-vm.vfs_cache_pressure = 50
-SYSCTL
-
-  sysctl --system | tee -a "$LOG_FILE"
-  systemctl daemon-reexec || true
-  echo "已写入。建议重启或重新登录 SSH 让 systemd 限制完全生效。"
 }
 
 load_debian_os_info() {
@@ -276,8 +201,8 @@ run_xuicert() {
   run_remote_script "$BASE_URL/certbot-xuicert.sh"
 }
 
-run_xui_system_full_tune() {
-  run_remote_script "$BASE_URL/begins/xui-system-full-tune.sh"
+run_universal_system_full_tune() {
+  run_remote_script "$BASE_URL/begins/system-full-tune.sh"
 }
 
 uninstall_begins() {
@@ -309,7 +234,7 @@ show_menu() {
   echo "│   3. 修改 hostname 为公网 IP + 红色提示符      │"
   echo "│   4. 根据公网 IP 设置时区                      │"
   echo "│   5. 设置时区为美国洛杉矶                      │"
-  echo "│   6. 应用高并发/TCP/BBR 参数                  │"
+  echo "│   6. 通用系统暴力优化（高并发/TCP/IO/Limit）  │"
   echo "│────────────────────────────────────────────────│"
   echo "│   证书工具                                     │"
   echo "│   7. 单独安装 certbot                          │"
@@ -324,13 +249,9 @@ show_menu() {
   echo "│  12. 查看系统状态                              │"
   echo "│  13. 查看 begins 日志                          │"
   echo "│────────────────────────────────────────────────│"
-  echo "│   3X-UI / Xray                                 │"
-  echo "│  14. 3X-UI/Xray 系统层暴力优化                 │"
-  echo "│      只改系统，不改 Xray/入站/iptables         │"
-  echo "│────────────────────────────────────────────────│"
   echo "│   管理                                         │"
-  echo "│  15. 更新 begins                               │"
-  echo "│  16. 卸载 begins                               │"
+  echo "│  14. 更新 begins                               │"
+  echo "│  15. 卸载 begins                               │"
   echo "╚────────────────────────────────────────────────╝"
   echo
   echo "Reality mode: nginx not installed by default, 443 reserved"
@@ -343,7 +264,7 @@ touch "$LOG_FILE"
 
 while true; do
   show_menu
-  read -r -p "Please enter your selection [0-16]: " choice
+  read -r -p "Please enter your selection [0-15]: " choice
   case "$choice" in
     0) exit 0 ;;
     1) run_remote_script "$BASE_URL/init-server.sh"; pause ;;
@@ -351,7 +272,7 @@ while true; do
     3) run_remote_script "$BASE_URL/host-ip.sh"; pause ;;
     4) set_timezone_by_ip; pause ;;
     5) set_timezone_los_angeles; pause ;;
-    6) apply_tuning; pause ;;
+    6) run_universal_system_full_tune; pause ;;
     7) apt update && apt install -y certbot; pause ;;
     8) run_xuicert; pause ;;
     9) run_speedtest; pause ;;
@@ -359,9 +280,8 @@ while true; do
     11) ss -tlnp; pause ;;
     12) show_status; pause ;;
     13) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
-    14) run_xui_system_full_tune; pause ;;
-    15) self_update_begins ;;
-    16) uninstall_begins ;;
-    *) echo "[ERR] Please enter the correct number [0-16]"; sleep 1 ;;
+    14) self_update_begins ;;
+    15) uninstall_begins ;;
+    *) echo "[ERR] Please enter the correct number [0-15]"; sleep 1 ;;
   esac
 done
