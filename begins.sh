@@ -205,6 +205,10 @@ run_universal_system_full_tune() {
   run_remote_script "$BASE_URL/begins/system-full-tune.sh"
 }
 
+run_install_bbr_v3() {
+  run_remote_script "$BASE_URL/begins/install-bbr-v3.sh"
+}
+
 uninstall_begins() {
   rm -f /usr/local/bin/begins
   echo "begins 已卸载。"
@@ -234,24 +238,27 @@ show_menu() {
   echo "│   3. 修改 hostname 为公网 IP + 红色提示符      │"
   echo "│   4. 根据公网 IP 设置时区                      │"
   echo "│   5. 设置时区为美国洛杉矶                      │"
+  echo "│────────────────────────────────────────────────│"
+  echo "│   系统优化 / 内核                              │"
   echo "│   6. 通用系统暴力优化（高并发/TCP/IO/Limit）  │"
+  echo "│   7. 安装最新 BBR v3（byJoey/Actions-bbr-v3） │"
   echo "│────────────────────────────────────────────────│"
   echo "│   证书工具                                     │"
-  echo "│   7. 单独安装 certbot                          │"
-  echo "│   8. 申请证书并软链接到 /root/xuicert          │"
+  echo "│   8. 单独安装 certbot                          │"
+  echo "│   9. 申请证书并软链接到 /root/xuicert          │"
   echo "│────────────────────────────────────────────────│"
   echo "│   网络测试                                     │"
-  echo "│   9. 运行 Speedtest                            │"
-  echo "│  10. 测试网络回程                              │"
+  echo "│  10. 运行 Speedtest                            │"
+  echo "│  11. 测试网络回程                              │"
   echo "│────────────────────────────────────────────────│"
   echo "│   系统查看                                     │"
-  echo "│  11. 查看监听端口                              │"
-  echo "│  12. 查看系统状态                              │"
-  echo "│  13. 查看 begins 日志                          │"
+  echo "│  12. 查看监听端口                              │"
+  echo "│  13. 查看系统状态                              │"
+  echo "│  14. 查看 begins 日志                          │"
   echo "│────────────────────────────────────────────────│"
   echo "│   管理                                         │"
-  echo "│  14. 更新 begins                               │"
-  echo "│  15. 卸载 begins                               │"
+  echo "│  15. 更新 begins                               │"
+  echo "│  16. 卸载 begins                               │"
   echo "╚────────────────────────────────────────────────╝"
   echo
   echo "Reality mode: nginx not installed by default, 443 reserved"
@@ -264,7 +271,7 @@ touch "$LOG_FILE"
 
 while true; do
   show_menu
-  read -r -p "Please enter your selection [0-15]: " choice
+  read -r -p "Please enter your selection [0-16]: " choice
   case "$choice" in
     0) exit 0 ;;
     1) run_remote_script "$BASE_URL/init-server.sh"; pause ;;
@@ -273,15 +280,16 @@ while true; do
     4) set_timezone_by_ip; pause ;;
     5) set_timezone_los_angeles; pause ;;
     6) run_universal_system_full_tune; pause ;;
-    7) apt update && apt install -y certbot; pause ;;
-    8) run_xuicert; pause ;;
-    9) run_speedtest; pause ;;
-    10) run_backtrace; pause ;;
-    11) ss -tlnp; pause ;;
-    12) show_status; pause ;;
-    13) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
-    14) self_update_begins ;;
-    15) uninstall_begins ;;
-    *) echo "[ERR] Please enter the correct number [0-15]"; sleep 1 ;;
+    7) run_install_bbr_v3; pause ;;
+    8) apt update && apt install -y certbot; pause ;;
+    9) run_xuicert; pause ;;
+    10) run_speedtest; pause ;;
+    11) run_backtrace; pause ;;
+    12) ss -tlnp; pause ;;
+    13) show_status; pause ;;
+    14) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
+    15) self_update_begins ;;
+    16) uninstall_begins ;;
+    *) echo "[ERR] Please enter the correct number [0-16]"; sleep 1 ;;
   esac
 done
