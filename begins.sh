@@ -209,9 +209,16 @@ run_install_bbr_v3() {
   run_remote_script "$BASE_URL/begins/install-bbr-v3.sh"
 }
 
+print_install_command() {
+  echo "重新安装 begins："
+  echo "curl -fsSL -H 'Cache-Control: no-cache' -o /usr/local/bin/begins https://raw.githubusercontent.com/linger020/begins/main/begins.sh && chmod +x /usr/local/bin/begins && begins"
+}
+
 uninstall_begins() {
   rm -f /usr/local/bin/begins
   echo "begins 已卸载。"
+  echo
+  print_install_command
   exit 0
 }
 
