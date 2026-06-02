@@ -9,7 +9,8 @@ set -euo pipefail
 # - best-effort NIC queue tuning
 # - journald size limits
 # It does NOT modify application configs, x-ui/xray/nginx/docker units, iptables/nftables,
-# health checks, watchdogs, cron restart loops, or application lifecycle.
+# health checks, watchdogs, cron restart loops, application lifecycle, or BBR queue discipline.
+# BBR/FQ/CAKE is intentionally left to the dedicated BBR menu/script.
 
 log() { echo "[begins-system-full-tune] $*"; }
 warn() { echo "[begins-system-full-tune][WARN] $*" >&2; }
@@ -31,8 +32,6 @@ backup_file() {
 apply_sysctl_file() {
   local file="$1"
 
-  modprobe tcp_bbr 2>/dev/null || true
-
   while IFS= read -r line; do
     line="${line%%#*}"
     line="$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
@@ -44,6 +43,32 @@ apply_sysctl_file() {
 
     sysctl -w "$key=$value" >/dev/null 2>&1 || warn "unsupported or rejected sysctl: $key=$value"
   done < "$file"
+}
+
+remove_sysctl_conf_block() {
+  local begin="$1"
+  local end="$2"
+  local file="/etc/sysctl.conf"
+  [ -f "$file" ] || return 0
+
+  if grep -qxF "$begin" "$file" 2>/dev/null; then
+    backup_file "$file"
+    awk -v begin="$begin" -v end="$end" '
+      $0 == begin {skip=1; next}
+      $0 == end {skip=0; next}
+      skip != 1 {print}
+    ' "$file" > "$file.tmp"
+    mv "$file.tmp" "$file"
+    log "已清理 /etc/sysctl.conf 托管块：$begin"
+  fi
+}
+
+cleanup_legacy_sysctl_conf_blocks() {
+  log "清理旧脚本写入 /etc/sysctl.conf 的强制托管块，避免抢占 BBR/FQ/CAKE 设置"
+  remove_sysctl_conf_block "# BEGIN XUI SYSTEM FULL TUNE" "# END XUI SYSTEM FULL TUNE"
+  remove_sysctl_conf_block "# BEGIN XUI PERFORMANCE BOOST" "# END XUI PERFORMANCE BOOST"
+  remove_sysctl_conf_block "# BEGIN XUI EXTREME NETWORK" "# END XUI EXTREME NETWORK"
+  remove_sysctl_conf_block "# BEGIN XUI SYSTEM NETWORK" "# END XUI SYSTEM NETWORK"
 }
 
 write_limits() {
@@ -78,21 +103,21 @@ EOF_SYSTEMD_USER
 }
 
 write_sysctl() {
-  log "写入通用 TCP / IO / VM 参数"
+  log "写入通用 TCP / IO / VM 参数（不接管 default_qdisc / tcp_congestion_control）"
 
   backup_file /etc/sysctl.d/99-begins-universal-tune.conf
 
   cat > /etc/sysctl.d/99-begins-universal-tune.conf <<'EOF_SYSCTL'
 # begins universal system tuning
+# Note: this file intentionally does not set:
+# - net.core.default_qdisc
+# - net.ipv4.tcp_congestion_control
+# Those are owned by the dedicated BBR/FQ/CAKE script.
 
 # File descriptors and process ids.
 fs.file-max = 2097152
 fs.nr_open = 2097152
 kernel.pid_max = 4194304
-
-# BBR / fq.
-net.core.default_qdisc = fq
-net.ipv4.tcp_congestion_control = bbr
 
 # Queue and backlog.
 net.core.somaxconn = 65535
@@ -232,12 +257,13 @@ main() {
   require_root
 
   log "开始通用系统暴力优化"
-  log "说明：只改系统层参数；不改应用配置；不做 health check；不重启 x-ui/xray/nginx/docker；不改防火墙。"
+  log "说明：只改系统层参数；不接管 BBR/FQ/CAKE；不改应用配置；不做 health check；不重启 x-ui/xray/nginx/docker；不改防火墙。"
 
   apt-get update -y || true
   apt-get install -y ethtool || true
 
   cleanup_old_xui_tune_artifacts
+  cleanup_legacy_sysctl_conf_blocks
   write_limits
   write_sysctl
   write_netdev_tune
@@ -250,8 +276,8 @@ main() {
 
   echo
   echo "===== begins 通用系统暴力优化完成 ====="
-  echo "已修改：Limit / sysctl / RPS-RFS / ethtool / journald"
-  echo "未修改：应用配置、服务 Unit、iptables/nftables、health check、自动重启逻辑"
+  echo "已修改：Limit / sysctl TCP-IO-VM / RPS-RFS / ethtool / journald"
+  echo "未修改：BBR/FQ/CAKE、应用配置、服务 Unit、iptables/nftables、health check、自动重启逻辑"
   echo "建议：重启服务器或重新登录 SSH 后，systemd 全局 Limit 完全生效。"
   echo
   echo "当前关键状态："
