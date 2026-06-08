@@ -26,6 +26,17 @@ run_remote_script() {
   rm -f "$tmp_file"
 }
 
+run_remote_script_with_args() {
+  local url="$1"
+  shift
+  local tmp_file
+  tmp_file="$(mktemp)"
+
+  curl -fsSL -H 'Cache-Control: no-cache' -o "$tmp_file" "$url"
+  bash "$tmp_file" "$@"
+  rm -f "$tmp_file"
+}
+
 show_status() {
   echo "公网 IPv4: $(curl -4 -fsS --max-time 5 https://ip.sb 2>/dev/null || echo unknown)"
   echo "Hostname: $(hostname 2>/dev/null || echo unknown)"
@@ -209,6 +220,14 @@ run_install_bbr_v3() {
   run_remote_script "$BASE_URL/begins/install-bbr-v3.sh"
 }
 
+run_xui_pgbouncer_preinstall() {
+  run_remote_script_with_args "$BASE_URL/begins/xui-pgbouncer.sh" preinstall
+}
+
+run_xui_pgbouncer_migrate() {
+  run_remote_script_with_args "$BASE_URL/begins/xui-pgbouncer.sh" migrate
+}
+
 print_install_command() {
   echo "重新安装 begins："
   echo "curl -fsSL -H 'Cache-Control: no-cache' -o /usr/local/bin/begins https://raw.githubusercontent.com/linger020/begins/main/begins.sh && chmod +x /usr/local/bin/begins && begins"
@@ -258,14 +277,18 @@ show_menu() {
   echo "│  10. 运行 Speedtest                            │"
   echo "│  11. 测试网络回程                              │"
   echo "│────────────────────────────────────────────────│"
+  echo "│   3X-UI                                        │"
+  echo "│  12. 前置安装：PgBouncer + 本地 DB DSN         │"
+  echo "│  13. 配置升级：迁移现有面板到 PgBouncer       │"
+  echo "│────────────────────────────────────────────────│"
   echo "│   系统查看                                     │"
-  echo "│  12. 查看监听端口                              │"
-  echo "│  13. 查看系统状态                              │"
-  echo "│  14. 查看 begins 日志                          │"
+  echo "│  14. 查看监听端口                              │"
+  echo "│  15. 查看系统状态                              │"
+  echo "│  16. 查看 begins 日志                          │"
   echo "│────────────────────────────────────────────────│"
   echo "│   管理                                         │"
-  echo "│  15. 更新 begins                               │"
-  echo "│  16. 卸载 begins                               │"
+  echo "│  17. 更新 begins                               │"
+  echo "│  18. 卸载 begins                               │"
   echo "╚────────────────────────────────────────────────╝"
   echo
   echo "Reality mode: nginx not installed by default, 443 reserved"
@@ -278,7 +301,7 @@ touch "$LOG_FILE"
 
 while true; do
   show_menu
-  read -r -p "Please enter your selection [0-16]: " choice
+  read -r -p "Please enter your selection [0-18]: " choice
   case "$choice" in
     0) exit 0 ;;
     1) run_remote_script "$BASE_URL/init-server.sh"; pause ;;
@@ -292,11 +315,13 @@ while true; do
     9) run_xuicert; pause ;;
     10) run_speedtest; pause ;;
     11) run_backtrace; pause ;;
-    12) ss -tlnp; pause ;;
-    13) show_status; pause ;;
-    14) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
-    15) self_update_begins ;;
-    16) uninstall_begins ;;
-    *) echo "[ERR] Please enter the correct number [0-16]"; sleep 1 ;;
+    12) run_xui_pgbouncer_preinstall; pause ;;
+    13) run_xui_pgbouncer_migrate; pause ;;
+    14) ss -tlnp; pause ;;
+    15) show_status; pause ;;
+    16) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
+    17) self_update_begins ;;
+    18) uninstall_begins ;;
+    *) echo "[ERR] Please enter the correct number [0-18]"; sleep 1 ;;
   esac
 done
