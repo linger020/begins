@@ -8,6 +8,7 @@ XUI_DEFAULT="/etc/default/x-ui"
 LOCAL_PGBOUNCER_HOST="127.0.0.1"
 LOCAL_PGBOUNCER_PORT="6432"
 INSTALL_3XUI_URL="https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh"
+export PSQL_PAGER=cat
 
 cleanup_temp_secrets() {
   rm -f \
@@ -284,6 +285,7 @@ show_pgbouncer_pools() {
   echo "PgBouncer pools："
   PGPASSWORD="$db_password" psql \
     "host=${LOCAL_PGBOUNCER_HOST} port=${LOCAL_PGBOUNCER_PORT} dbname=pgbouncer user=${db_user} sslmode=disable connect_timeout=5" \
+    -P pager=off \
     -c "SHOW POOLS;" || true
 }
 
