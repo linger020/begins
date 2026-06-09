@@ -146,20 +146,6 @@ run_debian_official_source() {
   echo "Debian 官方源切换完成。"
 }
 
-set_timezone_by_ip() {
-  apt update >/dev/null 2>&1 || true
-  apt install -y curl ca-certificates >/dev/null 2>&1 || true
-  TZ_NAME="$(curl -4 -fsS --max-time 8 https://ipapi.co/timezone 2>/dev/null || true)"
-  if [ -n "$TZ_NAME" ] && timedatectl list-timezones | grep -qx "$TZ_NAME"; then
-    timedatectl set-timezone "$TZ_NAME"
-    echo "已设置时区：$TZ_NAME"
-  else
-    timedatectl set-timezone America/Los_Angeles || true
-    echo "识别失败，已回退到 America/Los_Angeles"
-  fi
-  timedatectl
-}
-
 set_timezone_los_angeles() {
   timedatectl set-timezone America/Los_Angeles || {
     echo "设置洛杉矶时区失败"
@@ -208,6 +194,55 @@ run_backtrace() {
   backtrace
 }
 
+configure_fast_dns() {
+  local backup_dir
+  backup_dir="/root/dns-backup-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$backup_dir"
+
+  if [ -e /etc/resolv.conf ] || [ -L /etc/resolv.conf ]; then
+    cp -a /etc/resolv.conf "$backup_dir/resolv.conf.bak" 2>/dev/null || true
+  fi
+
+  echo "将 DNS 设置为海外 VPS 常用快速解析模板：Cloudflare / Google / Quad9"
+  echo "旧配置备份目录：$backup_dir"
+
+  if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files systemd-resolved.service >/dev/null 2>&1; then
+    mkdir -p /etc/systemd/resolved.conf.d
+    cat > /etc/systemd/resolved.conf.d/99-begins-dns.conf <<'EOF'
+[Resolve]
+DNS=1.1.1.1 8.8.8.8 9.9.9.9
+FallbackDNS=1.0.0.1 8.8.4.4 149.112.112.112
+DNSSEC=no
+DNSOverTLS=no
+EOF
+
+    systemctl enable --now systemd-resolved >/dev/null 2>&1 || true
+    systemctl restart systemd-resolved >/dev/null 2>&1 || true
+
+    if systemctl is-active --quiet systemd-resolved; then
+      if [ -e /run/systemd/resolve/stub-resolv.conf ]; then
+        ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+      fi
+
+      echo "systemd-resolved DNS 已写入：/etc/systemd/resolved.conf.d/99-begins-dns.conf"
+      resolvectl dns 2>/dev/null || true
+      return 0
+    fi
+  fi
+
+  rm -f /etc/resolv.conf
+  cat > /etc/resolv.conf <<'EOF'
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+nameserver 9.9.9.9
+options timeout:2 attempts:3 rotate
+EOF
+  chmod 0644 /etc/resolv.conf
+
+  echo "DNS 已写入：/etc/resolv.conf"
+  cat /etc/resolv.conf
+}
+
 run_xuicert() {
   run_remote_script "$BASE_URL/certbot-xuicert.sh"
 }
@@ -218,6 +253,10 @@ run_universal_system_full_tune() {
 
 run_install_bbr_v3() {
   run_remote_script "$BASE_URL/begins/install-bbr-v3.sh"
+}
+
+run_3xui_install() {
+  bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
 }
 
 run_xui_pgbouncer_preinstall() {
@@ -257,36 +296,30 @@ show_menu() {
   echo "│   Begins Server Management Script              │"
   echo "│   0. Exit Script                               │"
   echo "│────────────────────────────────────────────────│"
-  echo "│   基础初始化                                   │"
-  echo "│   1. Debian 初始化 + 常用包 + certbot          │"
+  echo "│   初始化 / 系统                                │"
+  echo "│   1. Debian 初始化 + 官方源 + 常用包 + certbot │"
   echo "│      REALITY 友好，不装 nginx/ufw/fail2ban     │"
   echo "│   2. 切换为 Debian 官方源                      │"
   echo "│   3. 修改 hostname 为公网 IP + 红色提示符      │"
-  echo "│   4. 根据公网 IP 设置时区                      │"
-  echo "│   5. 设置时区为美国洛杉矶                      │"
-  echo "│────────────────────────────────────────────────│"
-  echo "│   系统优化 / 内核                              │"
+  echo "│   4. 设置时区为美国洛杉矶                      │"
+  echo "│   5. 修改 DNS 为海外快速解析模板              │"
   echo "│   6. 通用系统暴力优化（高并发/TCP/IO/Limit）  │"
   echo "│   7. 安装最新 BBR v3（byJoey/Actions-bbr-v3） │"
   echo "│────────────────────────────────────────────────│"
-  echo "│   证书工具                                     │"
-  echo "│   8. 单独安装 certbot                          │"
-  echo "│   9. 申请证书并软链接到 /root/xuicert          │"
-  echo "│────────────────────────────────────────────────│"
-  echo "│   网络测试                                     │"
-  echo "│  10. 运行 Speedtest                            │"
-  echo "│  11. 测试网络回程                              │"
+  echo "│   证书 / 网络测试                              │"
+  echo "│   8. 申请证书并软链接到 /root/xuicert          │"
+  echo "│   9. 运行 Speedtest                            │"
+  echo "│  10. 测试网络回程                              │"
   echo "│────────────────────────────────────────────────│"
   echo "│   3X-UI                                        │"
+  echo "│  11. 安装官方 3X-UI 面板                      │"
   echo "│  12. 前置安装：PgBouncer + 本地 DB DSN         │"
   echo "│  13. 配置升级：迁移现有面板到 PgBouncer       │"
   echo "│────────────────────────────────────────────────│"
-  echo "│   系统查看                                     │"
+  echo "│   查看 / 管理                                  │"
   echo "│  14. 查看监听端口                              │"
   echo "│  15. 查看系统状态                              │"
   echo "│  16. 查看 begins 日志                          │"
-  echo "│────────────────────────────────────────────────│"
-  echo "│   管理                                         │"
   echo "│  17. 更新 begins                               │"
   echo "│  18. 卸载 begins                               │"
   echo "╚────────────────────────────────────────────────╝"
@@ -307,14 +340,14 @@ while true; do
     1) run_remote_script "$BASE_URL/init-server.sh"; pause ;;
     2) run_debian_official_source; pause ;;
     3) run_remote_script "$BASE_URL/host-ip.sh"; pause ;;
-    4) set_timezone_by_ip; pause ;;
-    5) set_timezone_los_angeles; pause ;;
+    4) set_timezone_los_angeles; pause ;;
+    5) configure_fast_dns; pause ;;
     6) run_universal_system_full_tune; pause ;;
     7) run_install_bbr_v3; pause ;;
-    8) apt update && apt install -y certbot; pause ;;
-    9) run_xuicert; pause ;;
-    10) run_speedtest; pause ;;
-    11) run_backtrace; pause ;;
+    8) run_xuicert; pause ;;
+    9) run_speedtest; pause ;;
+    10) run_backtrace; pause ;;
+    11) run_3xui_install; pause ;;
     12) run_xui_pgbouncer_preinstall; pause ;;
     13) run_xui_pgbouncer_migrate; pause ;;
     14) ss -tlnp; pause ;;
