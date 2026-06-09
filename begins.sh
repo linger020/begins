@@ -235,7 +235,7 @@ EOF
 nameserver 1.1.1.1
 nameserver 8.8.8.8
 nameserver 9.9.9.9
-options timeout:2 attempts:3 rotate
+options timeout:2 attempts:2
 EOF
   chmod 0644 /etc/resolv.conf
 

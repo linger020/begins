@@ -148,6 +148,15 @@ FallbackDNS=1.0.0.1 8.8.4.4 149.112.112.112
 
 如果系统未启用 `systemd-resolved`，脚本会备份并直接写入 `/etc/resolv.conf`。
 
+```text
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+nameserver 9.9.9.9
+options timeout:2 attempts:2
+```
+
+该模板不启用 `rotate`，保持固定优先级：优先 Cloudflare，失败后再尝试 Google 和 Quad9，避免不同公共 DNS 轮询导致 CDN 解析结果和访问路线频繁变化。
+
 ## 3X-UI PgBouncer 工具
 
 菜单中的 `3X-UI` 区块提供三个入口：
