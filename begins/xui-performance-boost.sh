@@ -170,9 +170,6 @@ fs.file-max = 2097152
 fs.nr_open = 2097152
 kernel.pid_max = 4194304
 
-net.core.default_qdisc = fq
-net.ipv4.tcp_congestion_control = bbr
-
 net.core.somaxconn = 65535
 net.core.netdev_max_backlog = 500000
 net.core.rmem_max = 134217728
@@ -242,8 +239,6 @@ apply_sysctl_key() {
 }
 
 apply_sysctl_runtime() {
-  modprobe tcp_bbr 2>/dev/null || true
-
   while IFS= read -r line; do
     line="${line%%#*}"
     line="$(printf '%s' "${line}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
@@ -450,7 +445,7 @@ print_status() {
     -p OOMScoreAdjust || true
 
   log "network settings:"
-  sysctl net.ipv4.tcp_congestion_control net.core.default_qdisc net.core.somaxconn net.core.netdev_max_backlog 2>/dev/null || true
+  sysctl net.core.somaxconn net.core.netdev_max_backlog 2>/dev/null || true
 
   log "memory and disk:"
   free -h || true

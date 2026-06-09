@@ -163,9 +163,6 @@ cat > /etc/sysctl.d/99-server-performance.conf <<SYSCTL
 fs.file-max = 2097152
 fs.nr_open = 2097152
 
-net.core.default_qdisc = fq
-net.ipv4.tcp_congestion_control = bbr
-
 net.core.somaxconn = 65535
 net.core.netdev_max_backlog = 250000
 net.ipv4.tcp_max_syn_backlog = 65535
@@ -223,12 +220,10 @@ bash <(curl -fsSL https://raw.githubusercontent.com/linger020/server-scripts/mai
 step "输出简要状态"
 PUBLIC_IP="$(curl -4 -fsS --max-time 8 https://ip.sb 2>>"$LOG_FILE" || true)"
 CURRENT_TZ="$(timedatectl 2>>"$LOG_FILE" | grep "Time zone" | sed 's/^[[:space:]]*//')"
-BBR_STATUS="$(sysctl -n net.ipv4.tcp_congestion_control 2>>"$LOG_FILE" || true)"
 NOFILE_LIMIT="$(ulimit -n 2>>"$LOG_FILE" || true)"
 
 echo "公网 IPv4：${PUBLIC_IP:-unknown}"
 echo "${CURRENT_TZ:-当前时区：unknown}"
-echo "TCP 拥塞控制：${BBR_STATUS:-unknown}"
 echo "当前 shell 文件句柄：${NOFILE_LIMIT:-unknown}"
 echo "详细日志：$LOG_FILE"
 echo "==> 初始化完成。默认安装 certbot，但不安装 nginx/ufw/fail2ban，避免占用 443 或影响 REALITY。"

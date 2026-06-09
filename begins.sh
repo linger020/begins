@@ -41,7 +41,6 @@ show_status() {
   echo "公网 IPv4: $(curl -4 -fsS --max-time 5 https://ip.sb 2>/dev/null || echo unknown)"
   echo "Hostname: $(hostname 2>/dev/null || echo unknown)"
   timedatectl 2>/dev/null | grep "Time zone" || true
-  echo "TCP 拥塞控制: $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo unknown)"
   echo "当前文件句柄: $(ulimit -n 2>/dev/null || echo unknown)"
   echo
   df -h

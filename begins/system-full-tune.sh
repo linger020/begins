@@ -9,8 +9,7 @@ set -euo pipefail
 # - best-effort NIC queue tuning
 # - journald size limits
 # It does NOT modify application configs, x-ui/xray/nginx/docker units, iptables/nftables,
-# health checks, watchdogs, cron restart loops, application lifecycle, or BBR queue discipline.
-# BBR/FQ/CAKE is intentionally left to the dedicated BBR menu/script.
+# health checks, watchdogs, cron restart loops, or application lifecycle.
 
 log() { echo "[begins-system-full-tune] $*"; }
 warn() { echo "[begins-system-full-tune][WARN] $*" >&2; }
@@ -64,7 +63,7 @@ remove_sysctl_conf_block() {
 }
 
 cleanup_legacy_sysctl_conf_blocks() {
-  log "清理旧脚本写入 /etc/sysctl.conf 的强制托管块，避免抢占 BBR/FQ/CAKE 设置"
+  log "清理旧脚本写入 /etc/sysctl.conf 的强制托管块"
   remove_sysctl_conf_block "# BEGIN XUI SYSTEM FULL TUNE" "# END XUI SYSTEM FULL TUNE"
   remove_sysctl_conf_block "# BEGIN XUI PERFORMANCE BOOST" "# END XUI PERFORMANCE BOOST"
   remove_sysctl_conf_block "# BEGIN XUI EXTREME NETWORK" "# END XUI EXTREME NETWORK"
@@ -103,16 +102,12 @@ EOF_SYSTEMD_USER
 }
 
 write_sysctl() {
-  log "写入通用 TCP / IO / VM 参数（不接管 default_qdisc / tcp_congestion_control）"
+  log "写入通用 TCP / IO / VM 参数"
 
   backup_file /etc/sysctl.d/99-begins-universal-tune.conf
 
   cat > /etc/sysctl.d/99-begins-universal-tune.conf <<'EOF_SYSCTL'
 # begins universal system tuning
-# Note: this file intentionally does not set:
-# - net.core.default_qdisc
-# - net.ipv4.tcp_congestion_control
-# Those are owned by the dedicated BBR/FQ/CAKE script.
 
 # File descriptors and process ids.
 fs.file-max = 2097152
@@ -257,7 +252,7 @@ main() {
   require_root
 
   log "开始通用系统暴力优化"
-  log "说明：只改系统层参数；不接管 BBR/FQ/CAKE；不改应用配置；不做 health check；不重启 x-ui/xray/nginx/docker；不改防火墙。"
+  log "说明：只改系统层参数；不改应用配置；不做 health check；不重启 x-ui/xray/nginx/docker；不改防火墙。"
 
   apt-get update -y || true
   apt-get install -y ethtool || true
@@ -277,13 +272,11 @@ main() {
   echo
   echo "===== begins 通用系统暴力优化完成 ====="
   echo "已修改：Limit / sysctl TCP-IO-VM / RPS-RFS / ethtool / journald"
-  echo "未修改：BBR/FQ/CAKE、应用配置、服务 Unit、iptables/nftables、health check、自动重启逻辑"
+  echo "未修改：应用配置、服务 Unit、iptables/nftables、health check、自动重启逻辑"
   echo "建议：重启服务器或重新登录 SSH 后，systemd 全局 Limit 完全生效。"
   echo
   echo "当前关键状态："
   echo "nofile: $(ulimit -n 2>/dev/null || echo unknown)"
-  echo "qdisc: $(sysctl -n net.core.default_qdisc 2>/dev/null || echo unknown)"
-  echo "congestion: $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo unknown)"
 }
 
 main "$@"
