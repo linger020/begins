@@ -7,7 +7,7 @@ PGB_USERS="/etc/pgbouncer/userlist.txt"
 XUI_DEFAULT="/etc/default/x-ui"
 LOCAL_PGBOUNCER_HOST="127.0.0.1"
 LOCAL_PGBOUNCER_PORT="6432"
-INSTALL_3XUI_URL="https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh"
+DEFAULT_POSTGRES_PORT="5432"
 export PSQL_PAGER=cat
 
 cleanup_temp_secrets() {
@@ -80,35 +80,26 @@ read_remote_dsn() {
   local dsn
   echo >&2
   echo "$prompt" >&2
-  echo "示例：postgres://xui:密码@远程IP:5432/xui?sslmode=disable" >&2
+  echo "示例：postgres://xui:密码@远程IP:${DEFAULT_POSTGRES_PORT}/xui?sslmode=disable" >&2
+  echo "注意：这里必须填写真实远程 PostgreSQL 端口，通常是 ${DEFAULT_POSTGRES_PORT}，不是 PgBouncer 的 ${LOCAL_PGBOUNCER_PORT}。" >&2
   read -r -s -p "DSN: " dsn
   echo >&2
   [ -n "$dsn" ] || die "DSN 不能为空"
   printf '%s' "$dsn"
 }
 
-read_xui_default_dsn() {
-  [ -f "$XUI_DEFAULT" ] || die "未找到 $XUI_DEFAULT，无法读取现有 XUI_DB_DSN。"
-  local dsn
-  dsn="$(grep -E '^XUI_DB_DSN=' "$XUI_DEFAULT" | tail -n 1 | cut -d= -f2- || true)"
-  [ -n "$dsn" ] || die "$XUI_DEFAULT 中未找到 XUI_DB_DSN。"
-  printf '%s' "$dsn"
-}
-
 write_generated_files() {
   local remote_dsn="$1"
-  local mode="$2"
 
   mkdir -p /etc/pgbouncer
   chmod 0755 /etc/pgbouncer
 
-  REMOTE_DSN="$remote_dsn" MODE="$mode" LOCAL_HOST="$LOCAL_PGBOUNCER_HOST" LOCAL_PORT="$LOCAL_PGBOUNCER_PORT" python3 - <<'PY'
+  REMOTE_DSN="$remote_dsn" LOCAL_HOST="$LOCAL_PGBOUNCER_HOST" LOCAL_PORT="$LOCAL_PGBOUNCER_PORT" python3 - <<'PY'
 import os
 import pathlib
 import urllib.parse
 
 remote_dsn = os.environ["REMOTE_DSN"].strip().strip('"').strip("'")
-mode = os.environ.get("MODE", "")
 local_host = os.environ.get("LOCAL_HOST", "127.0.0.1")
 local_port = os.environ.get("LOCAL_PORT", "6432")
 
@@ -131,8 +122,13 @@ port = parsed.port or 5432
 user = urllib.parse.unquote(parsed.username)
 password = urllib.parse.unquote(parsed.password)
 
-if mode == "preinstall" and host in {"127.0.0.1", "localhost", "::1"} and str(port) == local_port:
-    raise SystemExit("preinstall requires the real remote DB DSN, not the local PgBouncer DSN")
+if host in {"127.0.0.1", "localhost", "::1"} and str(port) == local_port:
+    raise SystemExit("requires the real remote DB DSN, not the local PgBouncer DSN")
+if str(port) == local_port:
+    raise SystemExit(
+        f"requires the real remote PostgreSQL port. Got {host}:{port}, "
+        f"which looks like a PgBouncer port. Use the remote PostgreSQL server port, usually 5432."
+    )
 
 safe_user = user.replace("\\", "\\\\").replace('"', '\\"')
 safe_password = password.replace("\\", "\\\\").replace('"', '\\"')
@@ -218,46 +214,32 @@ test_pgbouncer() {
   log "PgBouncer 数据库连通测试通过。"
 }
 
-write_xui_default_file() {
+apply_xui_default_dsn() {
   local local_dsn
   local_dsn="$(cat /tmp/begins-xui-local-dsn)"
 
   if [ -f "$XUI_DEFAULT" ]; then
     cp -a "$XUI_DEFAULT" "${XUI_DEFAULT}.bak.$(date +%Y%m%d-%H%M%S)"
-  fi
 
-  {
-    echo "XUI_DB_TYPE=postgres"
-    echo "XUI_DB_DSN=${local_dsn}"
-  } > "$XUI_DEFAULT"
-  chmod 0644 "$XUI_DEFAULT"
-
-  log "已写入 $XUI_DEFAULT"
-  echo
-  echo "给 3X-UI 使用的本地 PostgreSQL DSN 已写入："
-  sed -E 's#postgres://([^:]+):[^@]+@#postgres://\1:***@#' "$XUI_DEFAULT"
-}
-
-replace_xui_default_dsn() {
-  local local_dsn
-  local_dsn="$(cat /tmp/begins-xui-local-dsn)"
-
-  [ -f "$XUI_DEFAULT" ] || die "未找到 $XUI_DEFAULT"
-  cp -a "$XUI_DEFAULT" "${XUI_DEFAULT}.bak.$(date +%Y%m%d-%H%M%S)"
-
-  if grep -q '^XUI_DB_DSN=' "$XUI_DEFAULT"; then
-    sed -i "s#^XUI_DB_DSN=.*#XUI_DB_DSN=${local_dsn}#" "$XUI_DEFAULT"
+    if grep -q '^XUI_DB_DSN=' "$XUI_DEFAULT"; then
+      sed -i "s#^XUI_DB_DSN=.*#XUI_DB_DSN=${local_dsn}#" "$XUI_DEFAULT"
+    else
+      echo "XUI_DB_DSN=${local_dsn}" >> "$XUI_DEFAULT"
+    fi
+    if grep -q '^XUI_DB_TYPE=' "$XUI_DEFAULT"; then
+      sed -i 's#^XUI_DB_TYPE=.*#XUI_DB_TYPE=postgres#' "$XUI_DEFAULT"
+    else
+      sed -i '1iXUI_DB_TYPE=postgres' "$XUI_DEFAULT"
+    fi
   else
-    echo "XUI_DB_DSN=${local_dsn}" >> "$XUI_DEFAULT"
-  fi
-  if grep -q '^XUI_DB_TYPE=' "$XUI_DEFAULT"; then
-    sed -i 's#^XUI_DB_TYPE=.*#XUI_DB_TYPE=postgres#' "$XUI_DEFAULT"
-  else
-    sed -i '1iXUI_DB_TYPE=postgres' "$XUI_DEFAULT"
+    {
+      echo "XUI_DB_TYPE=postgres"
+      echo "XUI_DB_DSN=${local_dsn}"
+    } > "$XUI_DEFAULT"
   fi
   chmod 0644 "$XUI_DEFAULT"
 
-  log "已迁移 $XUI_DEFAULT 到本机 PgBouncer。"
+  log "已更新 $XUI_DEFAULT 到本机 PgBouncer。"
   sed -E 's#postgres://([^:]+):[^@]+@#postgres://\1:***@#' "$XUI_DEFAULT"
 }
 
@@ -289,59 +271,25 @@ show_pgbouncer_pools() {
     -c "SHOW POOLS;" || true
 }
 
-maybe_run_3xui_installer() {
-  local answer
-  echo
-  read -r -p "是否现在执行官方 3X-UI 安装脚本？[y/N]: " answer
-  case "$answer" in
-    y|Y|yes|YES)
-      bash <(curl -Ls "$INSTALL_3XUI_URL")
-      ;;
-    *)
-      echo
-      echo "你可以稍后手动执行："
-      echo "bash <(curl -Ls ${INSTALL_3XUI_URL})"
-      ;;
-  esac
-}
-
-preinstall() {
+install_upgrade() {
   require_root
   local remote_dsn
-  remote_dsn="$(read_remote_dsn "请输入 3X-UI 将使用的真实远程 PostgreSQL DSN")"
+  remote_dsn="$(read_remote_dsn "请输入真实远程 PostgreSQL DSN，脚本会升级为本机 PgBouncer DSN")"
 
   backup_runtime_files
   install_packages
-  write_generated_files "$remote_dsn" "preinstall"
+  write_generated_files "$remote_dsn"
   start_pgbouncer
   test_pgbouncer
-  write_xui_default_file
-
-  echo
-  echo "前置安装完成。远程数据库摘要："
-  cat /tmp/begins-xui-remote-summary
-  maybe_run_3xui_installer
-}
-
-migrate_existing() {
-  require_root
-  local current_dsn
-  current_dsn="$(read_xui_default_dsn)"
-  if printf '%s' "$current_dsn" | grep -q "@${LOCAL_PGBOUNCER_HOST}:${LOCAL_PGBOUNCER_PORT}/"; then
-    die "当前 XUI_DB_DSN 已经指向本机 PgBouncer：${LOCAL_PGBOUNCER_HOST}:${LOCAL_PGBOUNCER_PORT}"
-  fi
-
-  backup_runtime_files
-  install_packages
-  write_generated_files "$current_dsn" "migrate"
-  start_pgbouncer
-  test_pgbouncer
-  replace_xui_default_dsn
+  apply_xui_default_dsn
   restart_xui_if_present
   show_pgbouncer_pools
 
   echo
-  echo "迁移完成。后续可观察："
+  echo "PgBouncer 安装/升级完成。远程数据库摘要："
+  cat /tmp/begins-xui-remote-summary
+  echo
+  echo "后续可观察："
   echo "journalctl -u x-ui --since '24 hours ago' --no-pager | grep -Ei 'dial tcp .*5432|idle-in-transaction|timeout|deadlock'"
   echo "journalctl -u pgbouncer --since '24 hours ago' --no-pager | grep -Ei 'error|timeout|pooler|failed'"
 }
@@ -349,18 +297,14 @@ migrate_existing() {
 show_usage() {
   cat <<'EOF'
 用法：
-  xui-pgbouncer.sh preinstall   # 3X-UI 安装前：输入远程 DB DSN，安装 PgBouncer，写 /etc/default/x-ui
-  xui-pgbouncer.sh migrate      # 已安装 3X-UI：读取 /etc/default/x-ui，迁移到本机 PgBouncer
+  xui-pgbouncer.sh install-upgrade  # 输入远程 DB DSN，安装/升级 PgBouncer，并把 3X-UI 改为本机 DSN
 EOF
 }
 
 main() {
   case "${1:-}" in
-    preinstall)
-      preinstall
-      ;;
-    migrate)
-      migrate_existing
+    install-upgrade|upgrade|migrate|preinstall)
+      install_upgrade
       ;;
     *)
       show_usage

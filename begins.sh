@@ -259,12 +259,8 @@ run_3xui_install() {
   bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
 }
 
-run_xui_pgbouncer_preinstall() {
-  run_remote_script_with_args "$BASE_URL/begins/xui-pgbouncer.sh" preinstall
-}
-
-run_xui_pgbouncer_migrate() {
-  run_remote_script_with_args "$BASE_URL/begins/xui-pgbouncer.sh" migrate
+run_xui_pgbouncer_install_upgrade() {
+  run_remote_script_with_args "$BASE_URL/begins/xui-pgbouncer.sh" install-upgrade
 }
 
 print_install_command() {
@@ -313,15 +309,14 @@ show_menu() {
   echo "│────────────────────────────────────────────────│"
   echo "│   3X-UI                                        │"
   echo "│  11. 安装官方 3X-UI 面板                      │"
-  echo "│  12. 前置安装：PgBouncer + 本地 DB DSN         │"
-  echo "│  13. 配置升级：迁移现有面板到 PgBouncer       │"
+  echo "│  12. PgBouncer 安装/升级 + 本地 DB DSN        │"
   echo "│────────────────────────────────────────────────│"
   echo "│   查看 / 管理                                  │"
-  echo "│  14. 查看监听端口                              │"
-  echo "│  15. 查看系统状态                              │"
-  echo "│  16. 查看 begins 日志                          │"
-  echo "│  17. 更新 begins                               │"
-  echo "│  18. 卸载 begins                               │"
+  echo "│  13. 查看监听端口                              │"
+  echo "│  14. 查看系统状态                              │"
+  echo "│  15. 查看 begins 日志                          │"
+  echo "│  16. 更新 begins                               │"
+  echo "│  17. 卸载 begins                               │"
   echo "╚────────────────────────────────────────────────╝"
   echo
   echo "Reality mode: nginx not installed by default, 443 reserved"
@@ -334,7 +329,7 @@ touch "$LOG_FILE"
 
 while true; do
   show_menu
-  read -r -p "Please enter your selection [0-18]: " choice
+  read -r -p "Please enter your selection [0-17]: " choice
   case "$choice" in
     0) exit 0 ;;
     1) run_remote_script "$BASE_URL/init-server.sh"; pause ;;
@@ -348,13 +343,12 @@ while true; do
     9) run_speedtest; pause ;;
     10) run_backtrace; pause ;;
     11) run_3xui_install; pause ;;
-    12) run_xui_pgbouncer_preinstall; pause ;;
-    13) run_xui_pgbouncer_migrate; pause ;;
-    14) ss -tlnp; pause ;;
-    15) show_status; pause ;;
-    16) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
-    17) self_update_begins ;;
-    18) uninstall_begins ;;
-    *) echo "[ERR] Please enter the correct number [0-18]"; sleep 1 ;;
+    12) run_xui_pgbouncer_install_upgrade; pause ;;
+    13) ss -tlnp; pause ;;
+    14) show_status; pause ;;
+    15) tail -n 120 "$LOG_FILE" 2>/dev/null || true; pause ;;
+    16) self_update_begins ;;
+    17) uninstall_begins ;;
+    *) echo "[ERR] Please enter the correct number [0-17]"; sleep 1 ;;
   esac
 done
